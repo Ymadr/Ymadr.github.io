@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, viewport-fit=cover,
+                 user-scalable=no, maximum-scale=1">
+
+  <!-- PWA / iOS home screen -->
+  <meta name="apple-mobile-web-app-capable"           content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style"  content="black">
+  <meta name="apple-mobile-web-app-title"             content="SpendAI">
+  <meta name="mobile-web-app-capable"                 content="yes">
+  <meta name="theme-color"                            content="#000000">
+
+  <!-- SEO / Social -->
+  <title>SpendAI — AI Expense Tracker</title>
+  <script>
+    // Ensure trailing slash for GitHub Pages so relative paths work (prevents black screen)
+    (function() {
+      var l = window.location;
+      if (!l.pathname.endsWith('/') && !l.pathname.split('/').pop().includes('.')) {
+        l.replace(l.protocol + '//' + l.host + l.pathname + '/' + l.search + l.hash);
+      }
+    })();
+  </script>
+  <meta name="description"
+        content="Track expenses offline with built-in AI budget suggestions and spending insights. No internet required.">
+
+  <!-- Icons -->
+  <link rel="apple-touch-icon"    href="icons/icon.svg">
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+
+  <!-- Manifest -->
+  <link rel="manifest" href="manifest.json">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/app.css">
+
+  <style>
+    /* Loading splash (shown until JS boots) */
+    #loading {
+      position: fixed;
+      inset: 0;
+      background: #000000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      z-index: 9999;
+      transition: opacity 0.4s;
+    }
+    #loading.fade { opacity: 0; pointer-events: none; }
+    .splash-logo {
+      width: 88px;
+      height: 88px;
+      border-radius: 22px;
+      overflow: hidden;
+    }
+    .splash-title {
+      font-family: -apple-system, sans-serif;
+      font-size: 26px;
+      font-weight: 800;
+      color: #F9FAFB;
+      letter-spacing: -0.5px;
+    }
+    .splash-sub {
+      font-family: -apple-system, sans-serif;
+      font-size: 13px;
+      color: #6B7280;
+    }
+    .splash-dot-row {
+      display: flex;
+      gap: 7px;
+    }
+    .splash-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #7C3AED;
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    .splash-dot:nth-child(2) { animation-delay: 0.2s; background: #3B82F6; }
+    .splash-dot:nth-child(3) { animation-delay: 0.4s; background: #10B981; }
+    @keyframes pulse {
+      0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+      40%            { transform: scale(1.0); opacity: 1;   }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Splash screen -->
+  <div id="loading">
+    <img class="splash-logo" src="icons/icon.svg" alt="SpendAI Logo">
+    <div class="splash-title">SpendAI</div>
+    <div class="splash-sub">AI-Powered · 100% Offline</div>
+    <div class="splash-dot-row">
+      <div class="splash-dot"></div>
+      <div class="splash-dot"></div>
+      <div class="splash-dot"></div>
+    </div>
+  </div>
+
+  <!-- App root -->
+  <div id="app"></div>
+
+  <!-- Scripts (load order matters) -->
+  <script src="js/db.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/app.js"></script>
+
+  <script>
+    // Remove splash after app boots
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
+        const el = document.getElementById('loading');
+        if (el) {
+          el.classList.add('fade');
+          setTimeout(() => el.remove(), 450);
+        }
+      }, 600);
+    });
+
+    // Register service worker — detects updates and surfaces them to the app
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').then(reg => {
+
+          // If a new SW is already waiting when we load, tell the app
+          if (reg.waiting) {
+            window.__swWaiting = reg.waiting;
+            if (typeof App !== 'undefined') App._swUpdateReady(reg.waiting);
+          }
+
+          // A new SW installed while the page is open
+          reg.addEventListener('updatefound', () => {
+            const newSW = reg.installing;
+            newSW.addEventListener('statechange', () => {
+              if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+                // New version ready — tell the app (user data is safe in localStorage)
+                window.__swWaiting = newSW;
+                if (typeof App !== 'undefined') App._swUpdateReady(newSW);
+              }
+            });
+          });
+
+        }).catch(() => {});
+
+        // When new SW takes control, reload to get fresh assets
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
+          }
+        });
+      });
+    }
+  </script>
+</body>
+</html>
